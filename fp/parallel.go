@@ -1,19 +1,30 @@
-package parallel
+package fp
 
-import (
-	"sync"
-)
+import "sync"
 
-// Runs a function over an array of inputs with a diffined set of parrallel go routines, and returns an array with the results
+// Runs a function over an slice of inputs with a defined set of parrallel go routines, and returns an slice with the results
 // max_parallel: the maximun number of jobs that will run in parallel
-// input: array of input values
+// input: slice of input values
 // job: a function that will be run wil the input values
-func Run[v any, w any](max_parallel uint, input []v, job func(v) (w, error)) ([]w, []error) {
+func Parallel[v any, w any](max_parallel uint, input []v, job func(v) (w, error)) ([]w, []error) {
 	to_val_sum := make(chan w)
 	to_err_sum := make(chan error)
 
 	to_val_return := make(chan []w)
 	to_err_return := make(chan []error)
+
+	inChan := make(chan v)
+	doneChan := make(chan struct{}, max_parallel)
+
+	//Stream inputs
+	go func() {
+		for _, in := range input {
+			inChan <- in
+			doneChan <- struct{}{}
+		}
+
+		close(inChan)
+	}()
 
 	//Summarize values
 	go func() {
@@ -39,15 +50,11 @@ func Run[v any, w any](max_parallel uint, input []v, job func(v) (w, error)) ([]
 
 	//Loop inputs an run function
 	wg := sync.WaitGroup{}
-	count := uint(0)
-	for _, i := range input {
+	for in := range inChan {
 		wg.Add(1)
-		count++
-
 		//Run job with the input function
 		go func(j v) {
-			defer wg.Done()
-
+			defer func() { <-doneChan; wg.Done() }()
 			value, err := job(j)
 
 			if err != nil {
@@ -56,20 +63,10 @@ func Run[v any, w any](max_parallel uint, input []v, job func(v) (w, error)) ([]
 			}
 
 			to_val_sum <- value
-		}(i)
-
-		//If it exceed the max parallel value, then wait and reset count
-		if count >= max_parallel {
-			wg.Wait()
-			count = 0
-		}
-
+		}(in)
 	}
 
-	//Wait if there are jobs still running
-	if count < max_parallel {
-		wg.Wait()
-	}
+	wg.Wait()
 
 	//Close channels to stop summary go routines
 	close(to_val_sum)

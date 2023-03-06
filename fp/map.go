@@ -1,4 +1,4 @@
-package arrays
+package fp
 
 // Applies a map function over an array
 func Map[v any, w any](input []v, mf func(v) w) []w {

@@ -1,4 +1,4 @@
-package parallel
+package fp
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ func TestRun(t *testing.T) {
 		input = append(input, i)
 	}
 
-	out, errs := Run(7, input, func(i int) (string, error) {
+	out, errs := Parallel(7, input, func(i int) (string, error) {
 		if i%2 == 1 {
 			return "", fmt.Errorf("error on value %d", i)
 		}
@@ -29,5 +29,7 @@ func TestRun(t *testing.T) {
 	if len(out) != size/2 {
 		t.Error("more results were expected")
 	}
+
+	fmt.Println(out)
 
 }
